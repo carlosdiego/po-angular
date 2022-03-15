@@ -3,7 +3,7 @@ import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testin
 import { HttpClient, HttpHandler } from '@angular/common/http';
 import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
 
-import { Observable, throwError } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 
 import { changeBrowserInnerWidth, configureTestSuite } from './../../../util-test/util-expect.spec';
 
@@ -44,6 +44,7 @@ describe('PoComboComponent:', () => {
     component = fixture.componentInstance;
     component.label = 'Label de teste';
     component.help = 'Help de teste';
+    component.poComboBody = fixture.debugElement;
   });
 
   it('should be created', () => {
@@ -321,6 +322,15 @@ describe('PoComboComponent:', () => {
     documentBody.dispatchEvent(eventClick);
     documentBody.click();
     expect(component.wasClickedOnToggle).toHaveBeenCalled();
+  });
+
+  it('should call `checkInfiniteScroll` if infiniteScroll is true', () => {
+    component.infiniteScroll = true;
+
+    spyOn(component, <any>'checkInfiniteScroll');
+    component['initializeListeners']();
+
+    expect(component['checkInfiniteScroll']).toHaveBeenCalled();
   });
 
   it('should hide the combo list when was click out of the input', () => {
@@ -1131,6 +1141,17 @@ describe('PoComboComponent:', () => {
       expect(spySetScrollTop).toHaveBeenCalledWith(0);
     });
 
+    it('scrollTo: shouldn`t call setScrollTop if `infiniteScroll` is true', () => {
+      const index = 1;
+      component.infiniteScroll = true;
+
+      const spySetScrollTop = spyOn(component, <any>'setScrollTop');
+
+      component.scrollTo(index);
+
+      expect(spySetScrollTop).not.toHaveBeenCalled();
+    });
+
     it('scrollTo: should call setScrollTop with 0 if selectedView is undefined', () => {
       const index = 13;
 
@@ -1163,6 +1184,70 @@ describe('PoComboComponent:', () => {
       expect(component.contentElement).toBeUndefined();
     });
 
+    it('checkInfiniteScroll: should call includeInfiniteScroll if height is smaller than scrollHeight', () => {
+      const spyIncludeInfiniteScroll = spyOn(component, <any>'includeInfiniteScroll');
+      component.poComboBody = {
+        nativeElement: { offsetHeight: 100, scrollTop: 100, scrollHeight: 200 }
+      };
+
+      spyOn(component, <any>'hasInfiniteScroll').and.returnValue(true);
+      component['checkInfiniteScroll']();
+
+      expect(spyIncludeInfiniteScroll).toHaveBeenCalled();
+    });
+
+    it('checkInfiniteScroll: should not call includeInfiniteScroll if poComboBody is undefined', () => {
+      const spyIncludeInfiniteScroll = spyOn(component, <any>'includeInfiniteScroll');
+      component.poComboBody = undefined;
+
+      spyOn(component, <any>'hasInfiniteScroll').and.returnValue(true);
+      component['checkInfiniteScroll']();
+
+      expect(spyIncludeInfiniteScroll).not.toHaveBeenCalled();
+    });
+
+    it('checkInfiniteScroll: should call includeInfiniteScroll if height is less than scrollHeight', () => {
+      const spyIncludeInfiniteScroll = spyOn(component, <any>'includeInfiniteScroll');
+      component.poComboBody = {
+        nativeElement: { offsetHeight: 100, scrollTop: 100, scrollHeight: 150 }
+      };
+
+      spyOn(component, <any>'hasInfiniteScroll').and.returnValue(true);
+      component['checkInfiniteScroll']();
+
+      expect(spyIncludeInfiniteScroll).not.toHaveBeenCalled();
+    });
+
+    it('hasInfiniteScroll: should be called when has infiniteScroll and has poComboBody', () => {
+      component.infiniteScroll = true;
+      component.poComboBody = {
+        nativeElement: { offsetHeight: 100, scrollTop: 100, scrollHeight: 150 }
+      };
+
+      const test = component['hasInfiniteScroll']();
+
+      expect(test).toBeTruthy();
+    });
+
+    it('hasInfiniteScroll: should be called when has infiniteScroll and poComboBody is undefined', () => {
+      component.infiniteScroll = true;
+      component.poComboBody = undefined;
+
+      const test = component['hasInfiniteScroll']();
+
+      expect(test).toBeFalsy();
+    });
+
+    it('includeInfiniteScroll: should call `scrollListeneter called when `infiniteScroll` is used', () => {
+      component.infiniteScroll = true;
+      const spy = spyOn(component.defaultService, 'scrollListener').and.returnValue(
+        of({ target: { offsetHeight: 100, scrollTop: 100, scrollHeight: 1 } })
+      );
+
+      component['includeInfiniteScroll']();
+      expect(spy).toHaveBeenCalled();
+    });
+
     it('setContainerPosition: should call `controlPosition.setElements` and `adjustContainerPosition`', () => {
       fixture.detectChanges();
       const containerOffset = 8;
@@ -1182,6 +1267,28 @@ describe('PoComboComponent:', () => {
         customPositions,
         isSetElementWidth
       );
+    });
+
+    it('showMoreInfiniteScroll: should call `onShowMore` if `offsetHeight` + `scrollTop` is greater than `scrollHeight`', () => {
+      const event = { target: { offsetHeight: 100, scrollTop: 100, scrollHeight: 1 } };
+      const spyOnShowMore = spyOn(component, <any>'applyFilter');
+
+      component.infiniteScrollDistance = 10;
+
+      component.showMoreInfiniteScroll(event);
+
+      expect(spyOnShowMore).toHaveBeenCalled();
+    });
+
+    it('showMoreInfiniteScroll: shouldn`t call `onShowMore` if `offsetHeight` + `scrollTop` is less  than `scrollHeight`', () => {
+      const event = { target: { offsetHeight: 10, scrollTop: 10, scrollHeight: 100 } };
+      const spyOnShowMore = spyOn(component, <any>'applyFilter');
+
+      component.infiniteScrollDistance = 110;
+
+      component.showMoreInfiniteScroll(event);
+
+      expect(spyOnShowMore).not.toHaveBeenCalled();
     });
 
     it('removeListeners: should remove click, resize and scroll listeners', () => {
@@ -1250,6 +1357,16 @@ describe('PoComboComponent:', () => {
       expect(component.comboIcon).toBe('po-icon-arrow-up');
     });
 
+    it('open: shouldn`t call `scrollTo` if infiniteScroll is false', () => {
+      component.infiniteScroll = true;
+
+      const spyScrollTo = spyOn(component, <any>'scrollTo');
+
+      component['open']();
+
+      expect(spyScrollTo).not.toHaveBeenCalled();
+    });
+
     it(`close: should call 'removeListeners' and 'detectChanges'
       and update properties 'comboOpen' to 'false' and 'comboIcon' to 'po-icon-arrow-down'`, () => {
       component.comboOpen = true;
@@ -1265,6 +1382,14 @@ describe('PoComboComponent:', () => {
 
       expect(component.comboOpen).toBe(false);
       expect(component.comboIcon).toBe('po-icon-arrow-down');
+    });
+
+    it(`close: 'page' should be 1 if 'infiniteScroll' is true`, () => {
+      component.infiniteScroll = true;
+
+      component['close']();
+
+      expect(component.page).toBe(1);
     });
 
     it('isServerSearching: should call initializeListeners, detectChanges and setContainerPosition if isServerSearching is true', () => {
@@ -1783,7 +1908,44 @@ describe('PoComboComponent - with service:', () => {
   }));
 
   describe('Methods:', () => {
-    const fakeSubscription = <any>{ unsubscribe: () => {} };
+    const fakeSubscription = <any>{ unsubscribe: () => {}, subscribe: () => {} };
+
+    it('prepareOptions: should be called', () => {
+      const items = [
+        { label: 'Peter', value: 1 },
+        { label: 'Bruce', value: 2 }
+      ];
+      const expectedItems = [
+        { label: 'Peter', value: 1 },
+        { label: 'Bruce', value: 2 }
+      ];
+
+      const options = component['prepareOptions'](items);
+
+      expect(options).toEqual(expectedItems);
+    });
+    it('prepareOptions: should be called', () => {
+      component.options = [
+        {
+          label: 'Jason',
+          value: 3
+        }
+      ];
+      component.infiniteScroll = true;
+
+      const items = [
+        { label: 'Peter', value: 1 },
+        { label: 'Bruce', value: 2 }
+      ];
+      const expectedItems = [
+        { label: 'Jason', value: 3 },
+        { label: 'Peter', value: 1 },
+        { label: 'Bruce', value: 2 }
+      ];
+      const options = component['prepareOptions'](items);
+
+      expect(options).toEqual(expectedItems);
+    });
 
     it('applyFilter: should call PoComboFilterService.getFilteredData() with param and filterParams', () => {
       const filterParams = 'filter';
@@ -1796,6 +1958,9 @@ describe('PoComboComponent - with service:', () => {
         filterParams: filterParams,
         service: {
           getFilteredData: () => {}
+        },
+        defaultService: {
+          hasNext: true
         }
       };
 
@@ -1804,6 +1969,29 @@ describe('PoComboComponent - with service:', () => {
       component.applyFilter.apply(fakeThis, [applyFilterValue]);
 
       expect(fakeThis.service.getFilteredData).toHaveBeenCalledWith(param, filterParams);
+    });
+
+    it('applyFilter: shouldn´t call PoComboFilterService.getFilteredData() if hasNext is false', () => {
+      const filterParams = 'filter';
+      const applyFilterValue = 'value';
+      const fakeThis: any = {
+        controlComboVisibility: () => {},
+        setOptionsByApplyFilter: () => {},
+        fieldLabel: 'label',
+        filterParams: filterParams,
+        service: {
+          getFilteredData: () => {}
+        },
+        defaultService: {
+          hasNext: false
+        }
+      };
+
+      spyOn(fakeThis.service, 'getFilteredData').and.returnValue({ subscribe: callback => callback() });
+
+      component.applyFilter.apply(fakeThis, [applyFilterValue]);
+
+      expect(fakeThis.service.getFilteredData).not.toHaveBeenCalled();
     });
 
     it('applyFilter: should set isServerSearching and call controlComboVisibility with false if getFilteredData throw error', () => {
@@ -1873,6 +2061,24 @@ describe('PoComboComponent - with service:', () => {
       expect(spyFocus).not.toHaveBeenCalled();
     });
 
+    it('ngAfterViewInit: Should call checkInfiniteScroll if infiniteScroll is true', () => {
+      component.infiniteScroll = true;
+
+      const spyCheckInfiniteScroll = spyOn(component, <any>'checkInfiniteScroll');
+      component.ngAfterViewInit();
+
+      expect(spyCheckInfiniteScroll).toHaveBeenCalled();
+    });
+
+    it('ngAfterViewInit: shouldn´t call checkInfiniteScroll if infiniteScroll is false', () => {
+      component.infiniteScroll = false;
+
+      const spyCheckInfiniteScroll = spyOn(component, <any>'checkInfiniteScroll');
+      component.ngAfterViewInit();
+
+      expect(spyCheckInfiniteScroll).not.toHaveBeenCalled();
+    });
+
     it('ngOnDestroy: should not unsubscribe if getSubscription is falsy.', () => {
       component['getSubscription'] = fakeSubscription;
 
@@ -1882,6 +2088,17 @@ describe('PoComboComponent - with service:', () => {
       component.ngOnDestroy();
 
       expect(fakeSubscription.unsubscribe).not.toHaveBeenCalled();
+    });
+
+    it('ngOnDestroy: should unsubscribe if infiniteScroll is true', () => {
+      component.infiniteScroll = true;
+      component['subscriptionScrollEvent'] = fakeSubscription;
+
+      spyOn(fakeSubscription, <any>'unsubscribe');
+
+      component.ngOnDestroy();
+
+      expect(fakeSubscription.unsubscribe).toHaveBeenCalled();
     });
 
     it('ngOnDestroy: should not unsubscribe if filterSubscription is falsy.', () => {
