@@ -16,7 +16,9 @@
         [style.opacity]="tableOpacity"
       >
         <div *ngIf="height" class="po-table-container" [style.height.px]="heightTableContainer">
-          <div class="po-table-header-fixed po-table-header"></div>
+          <div class="po-table-header-fixed po-table-header">
+            <ng-container *ngTemplateOutlet="tableHeaderTemplate"></ng-container>
+          </div>
           <div #poTableTbody class="po-table-container-fixed-inner">
             <ng-container *ngTemplateOutlet="tableTemplate"></ng-container>
           </div>
@@ -52,8 +54,8 @@
   </po-button>
 </div>
 
-<ng-template #tableTemplate>
-  <table class="po-table" [class.po-table-striped]="striped" [class.po-table-layout-fixed]="hideTextOverflow">
+<ng-template #tableHeaderTemplate>
+  <table>
     <thead>
       <tr [class.po-table-header]="!height">
         <th *ngIf="hasSelectableColumn" class="po-table-column-selectable">
@@ -141,7 +143,11 @@
         </th>
       </tr>
     </thead>
+  </table>
+</ng-template>
 
+<ng-template #tableTemplate>
+  <table class="po-table" [class.po-table-striped]="striped" [class.po-table-layout-fixed]="hideTextOverflow">
     <tbody class="po-table-group-row" *ngIf="!hasItems || !hasMainColumns">
       <tr class="po-table-row">
         <td [colSpan]="columnCount" class="po-table-no-data po-text-center">
