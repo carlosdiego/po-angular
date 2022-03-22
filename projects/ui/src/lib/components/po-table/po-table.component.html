@@ -16,15 +16,18 @@
         [style.opacity]="tableOpacity"
       >
         <div *ngIf="height" class="po-table-container" [style.height.px]="heightTableContainer">
-          <div class="po-table-header-fixed po-table-header">
+          <div #poTableThead class="po-table-header-fixed po-table-header">
             <ng-container *ngTemplateOutlet="tableHeaderTemplate"></ng-container>
           </div>
-          <div #poTableTbody class="po-table-container-fixed-inner">
+          <div #poTableTbody class="po-table-container-fixed-inner" (scroll)="syncronizeHorizontalScroll()">
             <ng-container *ngTemplateOutlet="tableTemplate"></ng-container>
           </div>
         </div>
 
         <div *ngIf="!height">
+          <div class="po-table-header-fixed po-table-header">
+            <ng-container *ngTemplateOutlet="tableHeaderTemplate"></ng-container>
+          </div>
           <ng-container *ngTemplateOutlet="tableTemplate"></ng-container>
         </div>
       </div>
@@ -55,9 +58,47 @@
 </div>
 
 <ng-template #tableHeaderTemplate>
-  <table>
+  <table class="po-table" [class.po-table-striped]="striped" [class.po-table-layout-fixed]="hideTextOverflow">
+    <colgroup>
+      <col *ngIf="hasSelectableColumn" class="po-table-column-selectable" />
+      <col
+        *ngIf="(hasMasterDetailColumn || hasRowTemplate) && !hasRowTemplateWithArrowDirectionRight"
+        class="po-table-header-column po-table-header-master-detail"
+      />
+      <col
+        *ngIf="!actionRight && (visibleActions.length > 1 || isSingleAction)"
+        [class.po-table-header-master-detail]="!isSingleAction"
+        [class.po-table-header-single-action]="isSingleAction"
+      />
+      <col *ngIf="!hasMainColumns" class="po-table-header-column po-text-center" />
+      <col
+        *ngFor="let column of mainColumns; let i = index; trackBy: trackBy"
+        class="po-table-header-ellipsis"
+        [style.width]="column.width"
+        [style.max-width]="column.width"
+        [style.min-width]="column.width"
+        [class.po-clickable]="(sort && column.sortable !== false) || hasService"
+        [class.po-table-header-subtitle]="column.type === 'subtitle'"
+      />
+      <col
+        *ngIf="hasRowTemplateWithArrowDirectionRight && (hasVisibleActions || hideColumnsManager)"
+        class="po-table-header-column po-table-header-master-detail"
+      />
+      <col
+        *ngIf="hasVisibleActions && hideColumnsManager && actionRight"
+        [class.po-table-header-single-action]="isSingleAction"
+        [class.po-table-header-actions]="!isSingleAction"
+      />
+      <col
+        *ngIf="hasValidColumns && !hideColumnsManager"
+        [class.po-table-header-column-manager]="!isSingleAction || !actionRight"
+        [class.po-table-header-column-manager-border]="!height && container"
+        [class.po-table-header-single-action]="isSingleAction && actionRight"
+      />
+    </colgroup>
     <thead>
       <tr [class.po-table-header]="!height">
+        <!-- 1 -->
         <th *ngIf="hasSelectableColumn" class="po-table-column-selectable">
           <div [class.po-table-header-fixed-inner]="height">
             <input
@@ -72,22 +113,26 @@
           </div>
         </th>
 
+        <!-- 2 -->
         <th
           *ngIf="(hasMasterDetailColumn || hasRowTemplate) && !hasRowTemplateWithArrowDirectionRight"
           class="po-table-header-column po-table-header-master-detail"
         ></th>
 
         <!-- Coluna criada para caso as ações fiquem no lado esquerdo -->
+        <!-- 3 -->
         <th
           *ngIf="!actionRight && (visibleActions.length > 1 || isSingleAction)"
           [class.po-table-header-master-detail]="!isSingleAction"
           [class.po-table-header-single-action]="isSingleAction"
         ></th>
 
+        <!-- 4 -->
         <th *ngIf="!hasMainColumns" #noColumnsHeader class="po-table-header-column po-text-center">
           <ng-container *ngIf="height; then noColumnsWithHeight; else noColumnsWithoutHeight"> </ng-container>
         </th>
 
+        <!-- 5 -->
         <th
           *ngFor="let column of mainColumns; let i = index; trackBy: trackBy"
           #headersTable
@@ -109,17 +154,20 @@
           </div>
         </th>
 
+        <!-- 6 -->
         <th
           *ngIf="hasRowTemplateWithArrowDirectionRight && (hasVisibleActions || hideColumnsManager)"
           class="po-table-header-column po-table-header-master-detail"
         ></th>
 
+        <!-- 7 -->
         <th
           *ngIf="hasVisibleActions && hideColumnsManager && actionRight"
           [class.po-table-header-single-action]="isSingleAction"
           [class.po-table-header-actions]="!isSingleAction"
         ></th>
 
+        <!-- 8 -->
         <th
           #columnManager
           *ngIf="hasValidColumns && !hideColumnsManager"
@@ -148,6 +196,9 @@
 
 <ng-template #tableTemplate>
   <table class="po-table" [class.po-table-striped]="striped" [class.po-table-layout-fixed]="hideTextOverflow">
+    <colgroup *ngIf="!hasItems || !hasMainColumns">
+      <col class="po-table-no-data po-text-center" />
+    </colgroup>
     <tbody class="po-table-group-row" *ngIf="!hasItems || !hasMainColumns">
       <tr class="po-table-row">
         <td [colSpan]="columnCount" class="po-table-no-data po-text-center">
@@ -157,14 +208,41 @@
     </tbody>
 
     <ng-container *ngIf="hasMainColumns">
+      <colgroup>
+        <col *ngIf="selectable" class="po-table-column-selectable" />
+        <col *ngIf="columnMasterDetail && !hideDetail && !hasRowTemplate" class="po-table-column-detail-toggle" />
+        <col
+          *ngIf="!actionRight && (visibleActions.length > 1 || isSingleAction)"
+          class="po-table-column-single-action"
+        />
+        <col *ngIf="hasRowTemplate && !hasRowTemplateWithArrowDirectionRight" class="po-table-column-detail-toggle" />
+        <col
+          *ngFor="let column of mainColumns; let columnIndex = index; trackBy: trackBy"
+          [style.width]="column.width"
+          [style.max-width]="column.width"
+          [style.min-width]="column.width"
+        />
+        <col *ngIf="hasRowTemplateWithArrowDirectionRight" class="po-table-column-detail-toggle" />
+        <col *ngIf="actionRight" class="po-table-column-single-action" />
+        <col
+          *ngIf="!actionRight && (visibleActions.length > 1 || isSingleAction) && !hideColumnsManager"
+          class="po-table-column"
+        />
+        <col
+          *ngIf="!hasVisibleActions && !hideColumnsManager && !hasRowTemplateWithArrowDirectionRight"
+          class="po-table-column"
+        />
+      </colgroup>
       <tbody class="po-table-group-row" *ngFor="let row of items; let rowIndex = index; trackBy: trackBy">
         <tr class="po-table-row" [class.po-table-row-active]="row.$selected || (row.$selected === null && selectable)">
-          <td *ngIf="selectable" class="po-table-column po-table-column-selectable">
+          <!-- 1 -->
+          <td *ngIf="selectable" class="po-table-column-selectable">
             <ng-container *ngTemplateOutlet="singleSelect ? inputRadio : inputCheckbox; context: { $implicit: row }">
             </ng-container>
           </td>
 
           <!-- Valida se a origem do detail é pelo input do po-table -->
+          <!-- 2 -->
           <td
             *ngIf="columnMasterDetail && !hideDetail && !hasRowTemplate"
             class="po-table-column-detail-toggle"
@@ -178,6 +256,7 @@
           </td>
 
           <!-- Coluna com as ações na esquerda (padrão)-->
+          <!-- 3 -->
           <ng-template
             *ngIf="!actionRight && (visibleActions.length > 1 || isSingleAction)"
             [ngTemplateOutlet]="ActionsColumnTemplate"
@@ -186,6 +265,7 @@
           </ng-template>
 
           <!-- Valida se a origem do detail é pela diretiva -->
+          <!-- 4 -->
           <td
             *ngIf="hasRowTemplate && !hasRowTemplateWithArrowDirectionRight"
             class="po-table-column-detail-toggle"
@@ -198,6 +278,7 @@
             </ng-template>
           </td>
 
+          <!-- 5 -->
           <td
             *ngFor="let column of mainColumns; let columnIndex = index; trackBy: trackBy"
             [style.width]="column.width"
@@ -209,6 +290,7 @@
             [class.po-table-column-icons]="column.type === 'icon'"
             [ngClass]="getClassColor(row, column)"
             (click)="selectable ? selectRow(row) : 'javascript:;'"
+            data-index="{{ index }}"
           >
             <div
               class="po-table-column-cell notranslate"
@@ -281,6 +363,7 @@
             </div>
           </td>
 
+          <!-- 6 -->
           <td
             *ngIf="hasRowTemplateWithArrowDirectionRight"
             class="po-table-column-detail-toggle"
@@ -294,6 +377,7 @@
           </td>
 
           <!-- Coluna de açoes na direita -->
+          <!-- 7 -->
           <ng-template
             *ngIf="actionRight"
             [ngTemplateOutlet]="ActionsColumnTemplate"
@@ -302,14 +386,17 @@
           </ng-template>
 
           <!-- Coluna para não ficar em branco nas linhas de gerenciamento -->
+          <!-- 8 -->
           <ng-container *ngIf="!actionRight && (visibleActions.length > 1 || isSingleAction) && !hideColumnsManager">
-            <td class="po-table-column"></td>
+            <td class="po-table-column" data-c="1"></td>
           </ng-container>
 
           <!-- Column Manager -->
+          <!-- 9 -->
           <td
             *ngIf="!hasVisibleActions && !hideColumnsManager && !hasRowTemplateWithArrowDirectionRight"
             class="po-table-column"
+            data-c="2"
           ></td>
         </tr>
 

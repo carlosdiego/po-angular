@@ -95,6 +95,7 @@ export class PoTableComponent extends PoTableBaseComponent implements AfterViewI
   @ViewChild('tableFooter', { read: ElementRef, static: false }) tableFooterElement;
   @ViewChild('tableWrapper', { read: ElementRef, static: false }) tableWrapperElement;
   @ViewChild('poTableTbody', { read: ElementRef, static: false }) poTableTbody;
+  @ViewChild('poTableThead', { read: ElementRef, static: false }) poTableThead;
 
   @ViewChildren('actionsIconElement', { read: ElementRef }) actionsIconElement: QueryList<any>;
   @ViewChildren('actionsElement', { read: ElementRef }) actionsElement: QueryList<any>;
@@ -524,6 +525,11 @@ export class PoTableComponent extends PoTableBaseComponent implements AfterViewI
       const index = this.items.findIndex(indexItem => indexItem === item);
       this.items.splice(index, 1, updatedItem);
     }
+  }
+
+  syncronizeHorizontalScroll() {
+    const poTableTbodyScrollLeft = this.poTableTbody.nativeElement.scrollLeft;
+    this.poTableThead.nativeElement.scrollLeft = poTableTbodyScrollLeft;
   }
 
   public getTemplate(column: PoTableColumn): TemplateRef<any> {
